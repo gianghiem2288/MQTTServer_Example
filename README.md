@@ -1,4 +1,3 @@
-```markdown
 # Python-Based Internal MQTT Server with Anaconda
 
 ## 1. Introduction
