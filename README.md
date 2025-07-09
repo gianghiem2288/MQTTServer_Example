@@ -1,6 +1,6 @@
 # Python-based MQTT Server with Internal Broker
 
-## Giới thiệu
+## Introduction
 
 ### Project Goals
 This project implements a standalone MQTT server using Python 3.12.9 that hosts an **internal MQTT broker**, eliminating the need for external broker software like Mosquitto. The solution handles client connections, message routing, and real-time message logging with full Python 3.12 compatibility.
@@ -19,7 +19,7 @@ MQTT (Message Queuing Telemetry Transport) is a lightweight publish-subscribe pr
 - **Resource efficiency**: Lower overhead for small-scale deployments
 - **Python-native**: Seamless integration with Python applications and data processing pipelines
 
-## Kiến thức nền tảng & Nguyên lý hoạt động
+## Foundational Theory
 
 ### Core Concepts
 - **MQTT Broker**: Message router that manages client connections, topic subscriptions, and message distribution
@@ -44,7 +44,7 @@ graph TD
     B -->|Logs messages| F[Console/File]
 ```
 
-## Cài đặt môi trường (Anaconda 3.12.9)
+## Environment Installation (Anaconda 3.12.9)
 
 ### Environment Setup
 1. Install [Anaconda](https://www.anaconda.com/download)
@@ -67,7 +67,7 @@ mqtt_project/
 └── README.md        # This documentation
 ```
 
-## Phân tích mã nguồn chương trình MQTT Server
+## Source Code Breakdown
 
 ### Key Components (`server.py`)
 
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         print("[SERVER] Event loop closed")
 ```
 
-## Chương trình MQTT Client dùng để test
+## Demo MQTT Client
 
 ### Client Implementation (`client.py`)
 
@@ -202,7 +202,7 @@ Payload: 24.3°C
 Payload: 45%
 ```
 
-## Đánh giá và hướng phát triển
+## Evaluation and Development
 
 ### Advantages
 - **Self-contained**: No external dependencies
@@ -259,7 +259,7 @@ auth:
 - Implement HTTP/HTTPS bridge
 - Support CoAP protocol
 
-## Toàn bộ mã nguồn
+## Source Code
 
 ### server.py
 ```python
