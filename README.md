@@ -1,198 +1,277 @@
-# Python-Based Internal MQTT Server with Anaconda
+# Python-based MQTT Server with Internal Broker
 
-## 1. Introduction
-This project implements a Python-based MQTT server featuring an **internal MQTT broker** that eliminates the need for external brokers like Mosquitto. Designed for IoT systems, it enables devices to communicate directly through publish/subscribe messaging.
+## Giới thiệu
 
-### Project Goals:
-- Create a self-contained MQTT ecosystem
-- Enable message routing without external dependencies
-- Provide a lightweight solution for testing and development
+### Project Goals
+This project implements a standalone MQTT server using Python 3.12.9 that hosts an **internal MQTT broker**, eliminating the need for external broker software like Mosquitto. The solution handles client connections, message routing, and real-time message logging with full Python 3.12 compatibility.
 
-### MQTT in IoT Systems:
-MQTT (Message Queuing Telemetry Transport) is a lightweight publish/subscribe protocol ideal for constrained devices and unreliable networks. Its minimal overhead makes it perfect for IoT sensor data transmission.
+### Role of MQTT in IoT Systems
+MQTT (Message Queuing Telemetry Transport) is a lightweight publish-subscribe protocol ideal for IoT applications due to:
+- Low bandwidth consumption
+- Efficient data distribution
+- Support for unreliable networks
+- Decoupled architecture between data producers and consumers
 
-### Why an Internal Broker?
-- **Reduced complexity**: No separate broker installation/configuration
-- **Resource efficiency**: Lower memory/CPU consumption
-- **Development agility**: Simplified debugging and testing
-- **Portability**: Self-contained solution for edge devices
+### Why Use an Internal Broker?
+- **No external dependencies**: Self-contained operation without installing/configuring separate broker software
+- **Customization**: Full control over broker behavior and extensions
+- **Development efficiency**: Simplified debugging and testing
+- **Resource efficiency**: Lower overhead for small-scale deployments
+- **Python-native**: Seamless integration with Python applications and data processing pipelines
 
-## 2. Background Knowledge & Working Principles
+## Kiến thức nền tảng & Nguyên lý hoạt động
 
-### Core Concepts:
-- **MQTT Broker**: Message router handling client connections, topic management, and message distribution
-- **MQTT Client**: Devices/applications that publish or subscribe to topics
-- **Topics**: Hierarchical message channels (e.g., `sensors/temperature/room1`)
+### Core Concepts
+- **MQTT Broker**: Message router that manages client connections, topic subscriptions, and message distribution
+- **MQTT Client**: Devices/applications that publish messages or subscribe to topics
+- **Topics**: Hierarchical channels (e.g., `sensors/temperature/room1`) for message categorization
 
-### Internal Broker Operation:
-1. Server initializes embedded broker
-2. Clients connect to broker via TCP
-3. Publishers send messages to topics
-4. Broker routes messages to subscribed clients
-5. Subscribers receive relevant messages
+### Internal Broker Workflow
+1. Server initializes an embedded MQTT broker
+2. Clients connect to the broker using TCP
+3. Publishers send messages to specific topics
+4. Broker routes messages to all subscribers of matching topics
+5. Server processes messages internally without external services
 
-### System Architecture:
+### System Architecture
 ```mermaid
-graph LR
-    A[MQTT Client 1] -->|Publish| B(MQTT Server with Internal Broker)
-    C[MQTT Client 2] -->|Subscribe| B
-    D[MQTT Client 3] -->|Pub/Sub| B
-    B -->|Route Messages| C
-    B -->|Route Messages| D
+graph TD
+    A[MQTT Server] -->|Hosts| B[Internal Broker]
+    B -->|Manages| C[Client 1: Publisher]
+    B -->|Manages| D[Client 2: Subscriber]
+    C -->|Publishes to| E[Topic: sensors/temp]
+    D -->|Subscribes to| E
+    B -->|Logs messages| F[Console/File]
 ```
 
-## 3. Environment Setup (Anaconda 3.10.18)
+## Cài đặt môi trường (Anaconda 3.12.9)
 
-### Step-by-Step Setup:
+### Environment Setup
 1. Install [Anaconda](https://www.anaconda.com/download)
-2. Create environment:
-   ```bash
-   conda create -n mqtt_env python=3.10.18 -y
-   conda activate mqtt_env
-   ```
-3. Install required packages:
-   ```bash
-   pip install hbmqtt asyncio paho-mqtt
-   ```
+2. Create a new environment:
+```bash
+conda create -n mqtt_env python=3.12.9
+conda activate mqtt_env
+```
 
-### Project Structure:
+### Install Required Packages
+```bash
+pip install amqtt paho-mqtt
+```
+
+### Project Structure
 ```
 mqtt_project/
-├── mqtt_server.py    # Main server with internal broker
-├── mqtt_client.py    # Test client
-└── README.md
+├── server.py        # Main server with internal broker
+├── client.py        # Test client script
+└── README.md        # This documentation
 ```
 
-## 4. Source Code Analysis of MQTT Server Program
+## Phân tích mã nguồn chương trình MQTT Server
 
-### Key Components:
+### Key Components (`server.py`)
 
-#### 1. Broker Initialization
+#### 1. Broker Configuration
 ```python
-from hbmqtt.broker import Broker
-
-broker = Broker(config={
+config = {
     'listeners': {
         'default': {
             'type': 'tcp',
-            'bind': 'localhost:1883',  # MQTT standard port
+            'bind': '0.0.0.0:1883',  # Listen on all interfaces
             'max_connections': 10
         }
     },
     'sys_interval': 10,
     'topic-check': {
-        'enabled': False  # Allow all topics for development
+        'enabled': False  # Allow all topics
     }
-})
+}
 ```
 
-#### 2. Connection Management
+#### 2. Broker Initialization and Startup
 ```python
 async def start_broker():
+    broker = Broker(config)
     await broker.start()
-    print("Broker started at localhost:1883")
-
-# Handle client connections automatically
+    print("[SERVER] Internal MQTT broker started at 0.0.0.0:1883")
+    return broker
 ```
 
-#### 3. Message Processing
+#### 3. Message Logging and Processing
 ```python
-@broker.subscribe('#')  # Subscribe to all topics
-async def log_messages(client, topic, payload, qos):
-    print(f"Received message: {payload.decode()} on topic: {topic}")
+async def message_logger():
+    client = MQTTClient()
+    await client.connect('mqtt://localhost:1883')
+    await client.subscribe([('#', 0)])  # Subscribe to all topics
+    
+    while True:
+        message = await client.deliver_message()
+        packet = message.publish_packet
+        payload = packet.payload.data.decode()
+        print(f"\n[MSG] Topic: {packet.variable_header.topic_name}")
+        print(f"Payload: {payload}")
 ```
 
-#### 4. Safe Shutdown
+#### 4. Graceful Shutdown
 ```python
-async def shutdown():
+async def shutdown(broker):
     await broker.shutdown()
-
-# Handle SIGINT (Ctrl+C) for graceful exit
-loop = asyncio.get_event_loop()
-loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown()))
+    print("\n[SERVER] Broker stopped")
 ```
 
-## 5. MQTT Client Program for Testing
-
-### Client Features:
-- Connect to internal broker
-- Publish test messages
-- Subscribe to topics
-
-### Testing Workflow:
-1. Start server in Terminal 1:
-   ```bash
-   python mqtt_server.py
-   ```
-   Output: `Broker started at localhost:1883`
-
-2. Run client in Terminal 2:
-   ```bash
-   python mqtt_client.py
-   ```
-   Output: 
-   ```
-   Connected to broker
-   Published test message
-   Received: Hello from Client on topic: test/topic
-   ```
-
-### Sample Client Code Highlights:
+#### 5. Main Event Loop Management
 ```python
-import paho.mqtt.client as mqtt
+if __name__ == "__main__":
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("\n[SERVER] Keyboard interrupt received")
+    finally:
+        loop.close()
+        print("[SERVER] Event loop closed")
+```
 
+## Chương trình MQTT Client dùng để test
+
+### Client Implementation (`client.py`)
+
+#### Connection Handling
+```python
 def on_connect(client, userdata, flags, rc):
-    print("Connected to broker")
-    client.subscribe("test/topic")  # Subscribe to topic
-
-def on_message(client, userdata, msg):
-    print(f"Received: {msg.payload.decode()} on topic: {msg.topic}")
+    if rc == 0:
+        print("[CLIENT] Connected successfully")
+        client.publish("system/status", "Client online")
+    else:
+        print(f"[CLIENT] Connection failed with code {rc}")
 
 client = mqtt.Client()
 client.on_connect = on_connect
-client.on_message = on_message
-
 client.connect("localhost", 1883, 60)
-client.publish("test/topic", "Hello from Client")
-client.loop_forever()
+client.loop_start()
 ```
 
-## 6. Evaluation and Future Development
+#### Data Publishing
+```python
+try:
+    while True:
+        temp = round(20 + random.random() * 10, 1)
+        humidity = random.randint(30, 70)
+        
+        client.publish("sensors/temperature", f"{temp}°C")
+        client.publish("sensors/humidity", f"{humidity}%")
+        client.publish("device/status", "operational")
+        
+        print(f"[CLIENT] Published: temp={temp}°C, humidity={humidity}%")
+        time.sleep(5)
+```
 
-### Current Advantages:
-- Zero external dependencies
-- Low resource consumption (~50MB RAM)
-- Sub-millisecond message latency
-- Simplified development workflow
+### Testing Procedure
+1. **Start the server**:
+```bash
+python server.py
+```
+Output:
+```
+[SERVER] Internal MQTT broker started at 0.0.0.0:1883
+[SERVER] Message logger active. Press Ctrl+C to exit.
+```
 
-### Limitations:
-- Limited scalability for large deployments
-- Basic security implementation
-- No persistent message storage
+2. **Run the client**:
+```bash
+python client.py
+```
+Output:
+```
+[CLIENT] Publishing test data. Press Ctrl+C to stop.
+[CLIENT] Connected successfully
+[CLIENT] Published: temp=24.3°C, humidity=45%
+```
 
-### Enhancement Suggestions:
+3. **Server output**:
+```
+[MSG] Topic: system/status
+Payload: Client online
 
-| Feature               | Implementation Approach               |
-|-----------------------|--------------------------------------|
-| Web Dashboard         | Flask/Django + WebSocket integration |
-| Data Storage          | SQLite/InfluxDB integration          |
-| Security              | TLS encryption, username/password auth |
-| Multi-protocol Support| Add HTTP/WebSocket endpoints         |
-| Device Authentication | JWT or certificate-based auth        |
+[MSG] Topic: sensors/temperature
+Payload: 24.3°C
 
-## 7. Full Source Code
+[MSG] Topic: sensors/humidity
+Payload: 45%
+```
 
-### `mqtt_server.py`
+## Đánh giá và hướng phát triển
+
+### Advantages
+- **Self-contained**: No external dependencies
+- **Modern stack**: Python 3.12 + AMQTT compatibility
+- **Asynchronous design**: Efficient handling of multiple clients
+- **Simple configuration**: Easy to customize for different use cases
+
+### Limitations
+- Scalability constraints for large deployments
+- Limited built-in security features
+- Requires Python 3.7+ and async programming knowledge
+
+### Enhancement Opportunities
+
+#### Real-time Dashboard
+```mermaid
+graph LR
+    A[MQTT Broker] --> B[Dashboard]
+    B --> C[Real-time Visualization]
+    B --> D[Device Management]
+```
+
+#### Data Persistence
+```python
+# Example database logging
+async def save_to_db(topic, payload):
+    with sqlite3.connect('mqtt_data.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO messages VALUES (?,?,?)', 
+                      (datetime.now(), topic, payload))
+```
+
+#### Security Enhancements
+1. Implement TLS encryption:
+```python
+'listeners': {
+    'tls': {
+        'bind': '0.0.0.0:8883',
+        'ssl': True,
+        'certfile': 'server.crt',
+        'keyfile': 'server.key'
+    }
+}
+```
+2. Add client authentication:
+```yaml
+auth:
+  allow-anonymous: false
+  password-file: /path/to/passwd
+```
+
+#### Multi-Protocol Support
+- Add WebSocket endpoint
+- Implement HTTP/HTTPS bridge
+- Support CoAP protocol
+
+## Toàn bộ mã nguồn
+
+### server.py
 ```python
 import asyncio
-import signal
-from hbmqtt.broker import Broker
+from amqtt.broker import Broker
+from amqtt.client import MQTTClient
 
-BROKER_CONFIG = {
+config = {
     'listeners': {
         'default': {
             'type': 'tcp',
-            'bind': 'localhost:1883',
+            'bind': '0.0.0.0:1883',
             'max_connections': 10
         }
     },
@@ -202,76 +281,88 @@ BROKER_CONFIG = {
     }
 }
 
-broker = Broker(config=BROKER_CONFIG)
-
-@broker.subscribe('#')
-async def message_logger(client, topic, payload, qos):
-    print(f"\n[MSG RECEIVED] Topic: {topic}")
-    print(f"Payload: {payload.decode()}")
-    print(f"Client: {client}\n")
-
-async def start_server():
+async def start_broker():
+    broker = Broker(config)
     await broker.start()
-    print("MQTT Broker active at localhost:1883")
-    print("Press CTRL+C to shutdown")
+    print("[SERVER] Internal MQTT broker started at 0.0.0.0:1883")
+    return broker
 
-async def shutdown():
+async def message_logger():
+    client = MQTTClient()
+    await client.connect('mqtt://localhost:1883')
+    await client.subscribe([('#', 0)])
+    
+    print("[SERVER] Message logger active. Press Ctrl+C to exit.")
+    while True:
+        try:
+            message = await client.deliver_message()
+            packet = message.publish_packet
+            payload = packet.payload.data.decode()
+            print(f"\n[MSG] Topic: {packet.variable_header.topic_name}")
+            print(f"Payload: {payload}")
+        except Exception as e:
+            print(f"[ERROR] Message handling: {e}")
+            break
+
+async def shutdown(broker):
     await broker.shutdown()
-    print("\nBroker stopped")
+    print("\n[SERVER] Broker stopped")
+
+async def main():
+    broker = await start_broker()
+    try:
+        await message_logger()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await shutdown(broker)
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-
-    # Setup graceful shutdown
-    loop.add_signal_handler(signal.SIGINT, 
-                           lambda: asyncio.create_task(shutdown()))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        loop.run_until_complete(start_server())
-        loop.run_forever()
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("\n[SERVER] Keyboard interrupt received")
     finally:
         loop.close()
+        print("[SERVER] Event loop closed")
 ```
 
-### `mqtt_client.py`
+### client.py
 ```python
 import paho.mqtt.client as mqtt
 import time
+import random
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print("Connected to broker")
-        client.subscribe("test/topic")
+        print("[CLIENT] Connected successfully")
+        client.publish("system/status", "Client online")
     else:
-        print(f"Connection failed with code {rc}")
+        print(f"[CLIENT] Connection failed with code {rc}")
 
-def on_message(client, userdata, msg):
-    print(f"\n[MSG RECEIVED] Topic: {msg.topic}")
-    print(f"Payload: {msg.payload.decode()}\n")
+client = mqtt.Client()
+client.on_connect = on_connect
+client.connect("localhost", 1883, 60)
+client.loop_start()
 
-def main():
-    client = mqtt.Client()
-    client.on_connect = on_connect
-    client.on_message = on_message
-
-    client.connect("localhost", 1883, 60)
-    client.loop_start()
-
-    try:
-        time.sleep(1)  # Wait for connection
-        for i in range(3):
-            msg = f"Test message {i+1}"
-            client.publish("test/topic", msg)
-            print(f"Published: {msg}")
-            time.sleep(2)
-        time.sleep(2)  # Wait for final messages
-    except KeyboardInterrupt:
-        pass
-    finally:
-        client.loop_stop()
-        client.disconnect()
-        print("Client disconnected")
-
-if __name__ == "__main__":
-    main()
+print("[CLIENT] Publishing test data. Press Ctrl+C to stop.")
+try:
+    while True:
+        temp = round(20 + random.random() * 10, 1)
+        humidity = random.randint(30, 70)
+        
+        client.publish("sensors/temperature", f"{temp}°C")
+        client.publish("sensors/humidity", f"{humidity}%")
+        client.publish("device/status", "operational")
+        
+        print(f"[CLIENT] Published: temp={temp}°C, humidity={humidity}%")
+        time.sleep(5)
+        
+except KeyboardInterrupt:
+    client.publish("system/status", "Client offline")
+    client.disconnect()
+    print("\n[CLIENT] Disconnected")
 ```
