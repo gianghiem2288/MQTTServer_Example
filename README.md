@@ -34,7 +34,7 @@ MQTT (Message Queuing Telemetry Transport) is a lightweight publish/subscribe pr
 ### System Architecture:
 ```mermaid
 graph LR
-    A[MQTT Client 1] -->|Publish| B(Internal Broker)
+    A[MQTT Client 1] -->|Publish| B(MQTT Server with Internal Broker)
     C[MQTT Client 2] -->|Subscribe| B
     D[MQTT Client 3] -->|Pub/Sub| B
     B -->|Route Messages| C
